@@ -1,230 +1,127 @@
-/* FILE NAME: t02arrow.c
- * PROGRAMMER: VG4
- * DATE: 02.06.2026
- * PURPOSE: Arrows drawing.
- */
+/* Goncharov Prohor, 09-3, 03.06.2026 */
 
+
+#include <stdio.h>
 #include <windows.h>
-#include <time.h>
-#include <math.h>
+#define WND_CLASS_NAME "cgsg209"
+LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Msg,
+                              WPARAM wParam, LPARAM lParam);
 
-/* Main window class name */
-#define WND_CLASS_NAME "My SummerPractice Class Name"
 
-/* Forward declaration */
-LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam );
-
-/* Window handle function.
- * ARGUMENTS:
- *   - window handle:
- *       HWND hWnd;
- *   - message type (see WM_***):
- *       UINT Msg;
- *   - message 'word' parameter:
- *       WPARAM wParam;
- *   - message 'long' parameter:
- *       LPARAM lParam;
- * RETURNS:
- *   (LRESULT) message depende return value.
- */
-INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
-                    CHAR *CmdLine, INT ShowCmd )
+INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstanse, 
+                   CHAR *CmdLine, INT ShowCmd )
 {
-  HWND hWnd;
   WNDCLASS wc;
   MSG msg;
 
-  /* Fill window class structure */
-  wc.style = CS_HREDRAW | CS_VREDRAW;
+  wc.style = 0;
   wc.cbClsExtra = 0;
   wc.cbWndExtra = 0;
   wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
   wc.hCursor = LoadCursor(NULL, IDC_HAND);
   wc.hIcon = LoadIcon(NULL, IDI_SHIELD);
-  wc.lpszMenuName = NULL;
   wc.hInstance = hInstance;
-  wc.lpfnWndProc = MyWindowFunc;
+  wc.lpszMenuName = NULL;
   wc.lpszClassName = WND_CLASS_NAME;
+  wc.lpfnWndProc = MyWindowFunc;
 
-  /* Register window class */
   if (!RegisterClass(&wc))
   {
-    MessageBox(NULL, "Error register window class", "ERROR", MB_OK | MB_ICONERROR);
+    MessageBox(NULL, "error", "ERROR", MB_ICONERROR | MB_OK);
     return 0;
   }
 
-  /* Window creation */
-  hWnd = CreateWindow(WND_CLASS_NAME, "CGSG'SummerPractice'2026::Arrows", WS_OVERLAPPEDWINDOW,
-    2560 * 1, 0, 1920, 1000,
-    /* CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, */
-    NULL, NULL, hInstance, NULL);
-
-  /* ѕоказать и перерисовать окно */
-  ShowWindow(hWnd, ShowCmd);
-  UpdateWindow(hWnd);
-
-  /* ÷икл обработки сообщений, пока не будет получено сообщение 'WM_QUIT' */
   while (GetMessage(&msg, NULL, 0, 0))
   {
-    TranslateMessage(&msg);
+    TranslateMessage(&msg);       
     DispatchMessage(&msg);
   }
-  return msg.wParam;
-} /* End of 'WinMain' function */
-
-/* Arrow draw function.
- * ARGUMENTS:
- *   - device context handle:
- *       HDC hDC;
- *   - mouse cursor position in window coordinate system:
- *       POINT *Ms;
- *   - arror center point coordinates:
- *       INT Xc, Yc;
- *   - arrow sizes:
- *       INT L, W;
- * RETURNS: None.
- */
-VOID DrawArrow( HDC hDC, POINT *Ms, INT Xc, INT Yc, INT L, INT W )
+  MessageBox(NULL, "aaa", "Okno", MB_OK);
+  return 0;
+}
+                     
+LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
+                              WPARAM wParam, LPARAM lParam)
 {
-  INT
-    i,
-    dx = Ms->x - Xc,
-    dy = Ms->y - Yc;
-  DOUBLE
-    len = sqrt(dx * dx + dy * dy),
-    sine = dy / len,
-    cosine = dx / len,
-    alpha = atan2(-cosine, sine);
-  INT x = Xc + (INT)(dx * L / len), y = Yc + (INT)(dy * L / len);
-  POINT
-    pts[] = {{0, 0}, {-W, W}, {0, L}, {W, W}},
-    pts_res[sizeof(pts) / sizeof(pts[0])];
-  INT N = sizeof(pts) / sizeof(pts[0]);
-
-
-  for (i = 0; i < N; i++)
-  {
-    pts_res[i].x = Xc + (INT)(pts[i].x * cos(alpha) - pts[i].y * sin(alpha));
-    pts_res[i].y = Yc + (INT)(pts[i].x * sin(alpha) + pts[i].y * cos(alpha));
-  }
-
-  Polygon(hDC, pts_res, N);
-
-  MoveToEx(hDC, Xc, Yc, NULL);
-  LineTo(hDC, x, y);
-} /* End of 'DrawArrow' function */
-
-/* Window handle function.
- * ARGUMENTS:
- *   - window handle:
- *       HWND hWnd;
- *   - message type (see WM_***):
- *       UINT Msg;
- *   - message 'word' parameter:
- *       WPARAM wParam;
- *   - message 'long' parameter:
- *       LPARAM lParam;
- * RETURNS:
- *   (LRESULT) message depende return value.
- */
-LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam )
-{
-  INT x, y;
   HDC hDC;
   PAINTSTRUCT ps;
   POINT pt;
-  DOUBLE t;
-  static INT W, H, Mode = 0;
-  static HBITMAP hBm;
-  static HDC hMemDC;
-
-  switch (Msg)
+  SYSTEMTIME st;
+  char Buf[100];
+  static INT W, H;
+  static BOOL is_select = FALSE;
+  switch (Message)
   {
   case WM_CREATE:
-    SetTimer(hWnd, 30, 1, NULL);
-    hDC = GetDC(hWnd);
-    hMemDC = CreateCompatibleDC(hDC);
-    ReleaseDC(hWnd, hDC);
-    hBm = NULL;
+    SetTimer(hWnd, 30, 100, NULL);
     return 0;
   case WM_SIZE:
-    W = LOWORD(lParam);
     H = HIWORD(lParam);
-    if (hBm != NULL)
-      DeleteObject(hBm);
-    hDC = GetDC(hWnd);
-    hBm = CreateCompatibleBitmap(hDC, W, H);
-    ReleaseDC(hWnd, hDC);
-    SelectObject(hMemDC, hBm);
-    SendMessage(hWnd, WM_TIMER, 0, 0);
+    W = LOWORD(lParam);
     return 0;
   case WM_TIMER:
-    SelectObject(hMemDC, GetStockObject(DC_PEN));
-    SelectObject(hMemDC, GetStockObject(DC_BRUSH));
-    SetDCPenColor(hMemDC, RGB(0, 255, 0));
-    SetDCBrushColor(hMemDC, RGB(255, 255, 255));
-    Rectangle(hMemDC, 0, 0, W, H);
+    InvalidateRect(hWnd, NULL, FALSE);
+    return 0;
+  case WM_COMMAND:
+    if (LOWORD(wParam) == 123)
+      SendMessage(hWnd, WM_CLOSE, 0, 0);
+    else if (LOWORD(wParam) == 124)
+    {
+      DWORD style = GetWindowLong(hWnd, GWL_STYLE);
 
-    t = 8 * (DOUBLE)clock() / CLOCKS_PER_SEC;
-    pt.x = W / 2 + (INT)(sin(t) * W / 2);
-    pt.y = H / 2 + (INT)(sin(2 * t) * H / 2);
-    ClientToScreen(hWnd, &pt);
-    SetCursorPos(pt.x, pt.y);
+      if (style & WS_MAXIMIZE)
+        ShowWindow(hWnd, SW_NORMAL);  
+      else
+        ShowWindow(hWnd, SW_MAXIMIZE);
+    }
+    else if (LOWORD(wParam) == 125)
+    {
+      DWORD state = SendMessage((HWND)lParam, BM_GETSTATE, 0, 0);
 
+      is_select = !!(state & BST_CHECKED);
+      if (is_select)
+        SendMessage((HWND)lParam, BM_SETCHECK, BST_UNCHECKED, 0);
+      else
+        SendMessage((HWND)lParam, BM_SETCHECK, BST_CHECKED, 0);
+      InvalidateRect(hWnd, NULL, FALSE);
+    }
+    return 0; 
+  case WM_PAINT:
+    hDC = BeginPaint(hWnd, &ps);
+    //
+    SetDCBrushColor(hDC, RGB(30, 155, 155));
+    Rectangle(hDC, 100, 100, 300, 200);
+    if (is_select)
+      SelectObject(hDC, GetStockObject(NULL_BRUSH));
+    else
+      SelectObject(hDC, GetStockObject(WHITE_BRUSH));
+    SelectObject(hDC, GetStockObject(DC_PEN));
+    SetDCPenColor(hDC, RGB(255, 0, 0));
 
+    Ellipse(hDC, 0, 0, W, H);
     GetCursorPos(&pt);
     ScreenToClient(hWnd, &pt);
 
-    if (Mode == 0)
-    {
-      srand(30);
-      for (y = 0; y < 300; y++)
-      {
-        SetDCPenColor(hMemDC, RGB(rand() & 255, rand() & 255, rand() & 255));
-        SetDCBrushColor(hMemDC, RGB(rand() & 255, rand() & 255, rand() & 255));
-        DrawArrow(hMemDC, &pt, rand() % W, rand() % H, 147, 18);
-      }
-    }
-    else if (Mode == 1)
-    {
-      srand(30);
-      SetDCPenColor(hMemDC, RGB(rand() & 255, rand() & 255, rand() & 255));
-      SetDCBrushColor(hMemDC, RGB(rand() & 255, rand() & 255, rand() & 255));
-      for (y = 0; y < H; y += 1 + 30)
-        for (x = 0; x < W; x += 1 + 30)
-          DrawArrow(hMemDC, &pt, x, y, 47, 8);
-    }
+    SetDCPenColor(hDC, RGB(30, 155, 155));
+    Ellipse(hDC, pt.x - 5, pt.y - 5, pt.x + 5, pt.y + 5);
 
-    hDC = GetDC(hWnd);
-    BitBlt(hDC, 0, 0, W, H, hMemDC, 0, 0, SRCCOPY);
-    ReleaseDC(hWnd, hDC);
-    return 0;
-  case WM_KEYDOWN:
-    if (wParam == '1')
-      Mode = 0;
-    else if (wParam == '2')
-      Mode = 1;
-    return 0;
-  case WM_ERASEBKGND:
-    return 1;
-  case WM_PAINT:
-    hDC = BeginPaint(hWnd, &ps);
-    BitBlt(hDC, 0, 0, W, H, hMemDC, 0, 0, SRCCOPY);
+
+
+    GetLocalTime(&st);
+    TextOut(hDC, 130, 30, Buf, wsprintf(Buf, "%02d:%02d:%02d", st.wHour, st.wMinute, st.wSecond));
     EndPaint(hWnd, &ps);
     return 0;
-  case WM_CLOSE:
-    if (MessageBox(hWnd, "Are you sure exit?", "Exit", MB_YESNO | MB_ICONQUESTION) == IDYES)
-      break;
+  case WM_MOUSEMOVE:
+    InvalidateRect(hWnd, NULL, TRUE);
     return 0;
+  case WM_CLOSE:
+    if (MessageBox(hWnd, "close?", "Exit", MB_YESNO | MB_ICONQUESTION) == IDNO)
+      return 0;
+    break;
   case WM_DESTROY:
-    if (hBm != NULL)
-      DeleteObject(hBm);
-    DeleteDC(hMemDC);
     KillTimer(hWnd, 30);
-    PostQuitMessage(30);
+    PostMessage(NULL, WM_QUIT, 30, 0);
     return 0;
   }
-  return DefWindowProc(hWnd, Msg, wParam, lParam);
-} /* End of 'MyWindowFunc' function */
-
-/* END OF 't02arrow.c' FILE */
+  return DefWindowProc(hWnd, Message, wParam, lParam);
+}

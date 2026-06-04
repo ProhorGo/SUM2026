@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "T03CLOCK", "T03CLOCK.vcproj", "{8FB4C454-4A09-4CA5-9A47-0F01522E230B}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "T03CLOCK", "T03CLOCK.vcproj", "{5CA7FBD0-678D-4682-9CC9-D0C46B675BA5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -9,10 +9,10 @@ Global
 		Release|Win32 = Release|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{8FB4C454-4A09-4CA5-9A47-0F01522E230B}.Debug|Win32.ActiveCfg = Debug|Win32
-		{8FB4C454-4A09-4CA5-9A47-0F01522E230B}.Debug|Win32.Build.0 = Debug|Win32
-		{8FB4C454-4A09-4CA5-9A47-0F01522E230B}.Release|Win32.ActiveCfg = Release|Win32
-		{8FB4C454-4A09-4CA5-9A47-0F01522E230B}.Release|Win32.Build.0 = Release|Win32
+		{5CA7FBD0-678D-4682-9CC9-D0C46B675BA5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5CA7FBD0-678D-4682-9CC9-D0C46B675BA5}.Debug|Win32.Build.0 = Debug|Win32
+		{5CA7FBD0-678D-4682-9CC9-D0C46B675BA5}.Release|Win32.ActiveCfg = Release|Win32
+		{5CA7FBD0-678D-4682-9CC9-D0C46B675BA5}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
