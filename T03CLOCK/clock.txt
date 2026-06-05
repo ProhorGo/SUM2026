@@ -1,0 +1,230 @@
+#include <stdio.h>
+#include <time.h>
+#include <math.h>
+#include <windows.h>
+#include <winnls.h>
+#define WND_CLASS_NAME "cgsg209"
+#define PI 3.1415926535897931
+
+LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Msg,
+                              WPARAM wParam, LPARAM lParam);
+
+VOID DrawArrow( HDC hDC, INT cx, INT cy, FLOAT L, FLOAT W, FLOAT angle, INT r, INT g, INT b );
+
+VOID FlipFullScreen( HWND hWnd )
+{
+  static BOOL IsFullScreen = FALSE;
+  static RECT SaveRect;
+ 
+  if (!IsFullScreen)
+  {
+    HMONITOR hmon;
+    MONITORINFOEX moninfo;
+    RECT rc;
+ 
+    /* Save old window size and position */
+    GetWindowRect(hWnd, &SaveRect);
+ 
+    hmon = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+    
+    moninfo.cbSize = sizeof(moninfo);
+    GetMonitorInfo(hmon, (MONITORINFO *)&moninfo);
+
+    rc.left = 0;
+    rc.top = 0;
+    rc.right = GetSystemMetrics(SM_CXSCREEN);
+    rc.bottom = GetSystemMetrics(SM_CXSCREEN);
+
+    rc = moninfo.rcMonitor;
+
+    AdjustWindowRect(&rc, GetWindowLong(hWnd, GWL_STYLE), FALSE);
+         
+    SetWindowPos(hWnd, HWND_TOP,
+      rc.left, rc.top,
+      rc.right - rc.left,
+      rc.bottom - rc.top,
+      SWP_NOOWNERZORDER);
+    IsFullScreen = TRUE;
+  }
+  else
+  {
+    /* Restore from full screen mode */
+    SetWindowPos(hWnd, HWND_TOP,
+      SaveRect.left, SaveRect.top,
+      SaveRect.right - SaveRect.left,
+      SaveRect.bottom - SaveRect.top,
+      SWP_NOOWNERZORDER);
+    IsFullScreen = FALSE;
+  }
+}
+
+INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstanse, 
+                   CHAR *CmdLine, INT ShowCmd )
+{
+  HWND hWnd;
+  WNDCLASS wc;
+  MSG msg;
+
+  wc.style = 0;
+  wc.cbClsExtra = 0;
+  wc.cbWndExtra = 0;
+  wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
+  wc.hCursor = LoadCursor(NULL, IDC_HAND);
+  wc.hIcon = LoadIcon(NULL, IDI_SHIELD);
+  wc.hInstance = hInstance;
+  wc.lpszMenuName = NULL;
+  wc.lpszClassName = WND_CLASS_NAME;
+  wc.lpfnWndProc = MyWindowFunc;
+
+  if (!RegisterClass(&wc))
+  {
+    MessageBox(NULL, "error", "ERROR", MB_ICONERROR | MB_OK);
+    return 0;
+  }
+
+  hWnd = CreateWindow(WND_CLASS_NAME, "SummerPractice2026", WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+    100, 100, 500, 300, NULL, NULL, hInstance, NULL);
+ 
+  CreateWindow("BUTTON", "CLOSE", WS_CHILD | WS_VISIBLE,
+    10, 10, 100, 30, hWnd, (HMENU)123, hInstance, NULL);
+
+  while (GetMessage(&msg, NULL, 0, 0))
+  {
+    TranslateMessage(&msg);       
+    DispatchMessage(&msg);
+  }
+  return msg.wParam;
+}
+
+VOID DrawArrow( HDC hDC, INT cx, INT cy, FLOAT L, FLOAT Wh, FLOAT angle, INT r, INT g, INT b )
+{
+  POINT pnts[4];
+  HPEN hPen;
+  HBRUSH hBr;
+
+  pnts[0].x = cx + (int)(L * sin(angle));
+  pnts[0].y = cy - (int)(L * cos(angle));
+  pnts[1].x = cx + (int)((Wh / 2) * cos(angle));
+  pnts[1].y = cy + (int)((Wh / 2) * sin(angle));
+  pnts[2].x = cx; 
+  pnts[2].y = cy;
+  pnts[3].x = cx - (int)((Wh / 2) * cos(angle));
+  pnts[3].y = cy - (int)((Wh / 2) * sin(angle));
+ 
+  hPen = CreatePen(PS_SOLID, 5, RGB(r, g, b));
+  hBr = CreateSolidBrush(RGB(r, g, b));
+  SelectObject(hDC, hPen);
+  SelectObject(hDC, hBr);
+  Polygon(hDC, pnts, 4);
+  DeleteObject(hBr);
+  DeleteObject(hPen);
+}
+                                             
+LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
+                              WPARAM wParam, LPARAM lParam)
+{
+  HDC hDC, hTempDC;
+  PAINTSTRUCT ps;
+  static INT W, H, clockW, clockH, x, y;
+  static HDC hMemDC, hOldFnt;
+  static HBITMAP hclockBuf, hFnt;
+  static HBITMAP hclock;
+  SYSTEMTIME st;
+  BITMAP bm;
+  CHAR buf[100];
+  FLOAT k, t;
+  RECT rc;
+  
+  switch (Message)
+  {
+  case WM_CREATE:
+    hDC = GetDC(hWnd);
+    hMemDC = CreateCompatibleDC(hDC);
+    ReleaseDC(hWnd, hDC);
+    hclock = LoadImage(NULL, "clockface.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+    GetObject(hclock, sizeof(BITMAP), &bm);
+    clockW = bm.bmWidth;
+    clockH = bm.bmHeight;
+    SetTimer(hWnd, 30, 100, NULL);
+    return 0;
+  case WM_KEYDOWN:
+    if (wParam == VK_F11)
+      FlipFullScreen(hWnd);
+    return 0;
+  case WM_COMMAND:
+    SendMessage(hWnd, WM_CLOSE, 0, 0);
+  case WM_SIZE:         
+    H = HIWORD(lParam);
+    W = LOWORD(lParam);
+    if (hclockBuf != NULL)
+      DeleteObject(hclockBuf);
+    hDC = GetDC(hWnd);
+    hclockBuf = CreateCompatibleBitmap(hDC, W, H);
+    ReleaseDC(hWnd, hDC);
+    SelectObject(hMemDC, hclockBuf);
+    InvalidateRect(hWnd, NULL, FALSE);                           
+    return 0;
+  case WM_TIMER:
+    InvalidateRect(hWnd, NULL, FALSE);
+    return 0;
+  case WM_LBUTTONDOWN:
+    InvalidateRect(hWnd, NULL, FALSE);
+    return 0; 
+  case WM_PAINT:
+    hDC = BeginPaint(hWnd, &ps);
+
+    rc.left = 0;
+    rc.top = 0;
+    rc.right = W;
+    rc.bottom = H;
+
+    SelectObject(hMemDC, GetStockObject(WHITE_PEN)); 
+    SelectObject(hMemDC, GetStockObject(WHITE_BRUSH));
+    Rectangle(hMemDC, 0, 0, W, H);
+    k = (((float)W / clockW) < ((float)H / clockH)) ? ((float)W / clockW) : ((float)H / clockH);
+
+    hTempDC = CreateCompatibleDC(hMemDC);
+    SelectObject(hTempDC, hclock);
+    SetStretchBltMode(hMemDC, COLORONCOLOR);
+    StretchBlt(hMemDC, ((W - clockW * k) / 2), ((H - clockH * k) / 2), clockW * k, clockH * k, hTempDC, 0, 0, clockW, clockH, SRCCOPY);
+    SelectObject(hMemDC, hclockBuf);
+    DeleteDC(hTempDC);
+
+    GetLocalTime(&st);
+    DrawArrow(hMemDC, W / 2, H / 2, min(clockW, clockH) * 0.18 * k, min(clockW, clockH) * 0.03 * k, 30 * PI / 180 
+      * (st.wHour % 12 + st.wMinute / 60.0), 0, 0, 0);
+    DrawArrow(hMemDC, W / 2, H / 2, min(clockW, clockH) * 0.32 * k, min(clockW, clockH) * 0.03 * k, 6 * PI / 180 
+      * st.wMinute, 0, 0, 0);
+    DrawArrow(hMemDC, W / 2, H / 2, min(clockW, clockH) * 0.42 * k, min(clockW, clockH) * 0.03 * k, 6 * PI / 180 
+      * st.wSecond, 0, 0, 0);
+
+
+    hFnt =
+      CreateFont(y, 0, 0, 0, FW_HEAVY, FALSE, FALSE, FALSE, RUSSIAN_CHARSET,
+        OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+        VARIABLE_PITCH | FF_SWISS, "");
+    hOldFnt = SelectObject(hMemDC, hFnt);
+ 
+    t = clock();
+    // SetBkColor(hMemDC, RGB(220, 220, 180));
+    sprintf(buf, "%02d:%02d:%02d", st.wHour, st.wMinute, st.wSecond);
+    SetBkMode(hMemDC, OPAQUE);
+    SetBkColor(hMemDC, RGB(255, 255, 255)); 
+    SetTextColor(hMemDC, RGB(0, 0, 0));
+    TextOut(hMemDC, (W - 70) / 2, H / 10 * 7, buf, strlen(buf));
+                              
+    BitBlt(hDC, 0, 0, W, H, hMemDC, 0, 0, SRCCOPY);
+    EndPaint(hWnd, &ps);
+    return 0;
+  case WM_ERASEBKGND:
+    return 1;
+  case WM_DESTROY:
+    DeleteObject(hclockBuf);
+    DeleteObject(hclock);
+    DeleteDC(hMemDC);
+    KillTimer(hWnd, 30);
+    PostQuitMessage(0);
+    return 0;
+  }
+  return DefWindowProc(hWnd, Message, wParam, lParam);
+}   
