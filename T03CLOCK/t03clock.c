@@ -4,6 +4,52 @@
 LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Msg,
                               WPARAM wParam, LPARAM lParam);
 
+VOID FlipFullScreen( HWND hWnd )
+{
+  static BOOL IsFullScreen = FALSE;
+  static RECT SaveRect;
+ 
+  if (!IsFullScreen)
+  {
+    HMONITOR hmon;
+    MONITORINFOEX moninfo;
+    RECT rc;
+ 
+    /* Save old window size and position */
+    GetWindowRect(hWnd, &SaveRect);
+ 
+    hmon = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+    
+    moninfo.cbSize = sizeof(moninfo);
+    GetMonitorInfo(hmon, (MONITORINFO *)&moninfo);
+
+    rc.left = 0;
+    rc.top = 0;
+    rc.right = GetSystemMetrics(SM_CXSCREEN);
+    rc.bottom = GetSystemMetrics(SM_CXSCREEN);
+
+    rc = moninfo.rcMonitor;
+
+    AdjustWindowRect(&rc, GetWindowLong(hWnd, GWL_STYLE), FALSE);
+         
+    SetWindowPos(hWnd, HWND_TOP,
+      rc.left, rc.top,
+      rc.right - rc.left,
+      rc.bottom - rc.top,
+      SWP_NOOWNERZORDER);
+    IsFullScreen = TRUE;
+  }
+  else
+  {
+    /* Restore from full screen mode */
+    SetWindowPos(hWnd, HWND_TOP,
+      SaveRect.left, SaveRect.top,
+      SaveRect.right - SaveRect.left,
+      SaveRect.bottom - SaveRect.top,
+      SWP_NOOWNERZORDER);
+    IsFullScreen = FALSE;
+  }
+}
 
 INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstanse, 
                    CHAR *CmdLine, INT ShowCmd )
@@ -178,7 +224,7 @@ LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
   }
   return DefWindowProc(hWnd, Message, wParam, lParam);
 }                                */
-
+                               
 LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
                               WPARAM wParam, LPARAM lParam)
 {
@@ -186,8 +232,9 @@ LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
   PAINTSTRUCT ps;
   static INT W, H;
   static HDC hMemDC;
-  static HBITMAP hclockBuf;
+  static HDC hclockBuf;
   static HBITMAP hclock;
+  BITMAP bm;
   
   switch (Message)
   {
@@ -195,8 +242,72 @@ LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
     hDC = GetDC(hWnd);
     hMemDC = CreateCompatibleDC(hDC);
     ReleaseDC(hWnd, hDC);
-    hclock = (BITMAP)LoadImage(NULL, "cloackface.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+    hclock = LoadImage(NULL, "clockface.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+
     SetTimer(hWnd, 30, 100, NULL);
+    return 0;
+  case WM_KEYDOWN:
+    if (wParam == VK_F11)
+      FlipFullScreen(hWnd);
+  case WM_SIZE:         
+    H = HIWORD(lParam);
+    W = LOWORD(lParam);
+    if (hclockBuf != NULL)
+      DeleteObject(hclockBuf);
+    hDC = GetDC(hWnd);
+    hclockBuf = CreateCompatibleBitmap(hDC, W, H);
+    ReleaseDC(hWnd, hDC);
+    SelectObject(hclockBuf, hclock);
+                               
+    GetObject(hclockBuf, sizeof(BITMAP), &bm);
+    SelectObject(hMemDC, hclockBuf);      
+    SendMessage(hWnd, WM_TIMER, 0, 0);
+    return 0;
+  case WM_TIMER:
+    InvalidateRect(hWnd, NULL, FALSE);
+    return 0;
+  case WM_LBUTTONDOWN:
+    InvalidateRect(hWnd, NULL, FALSE);
+    return 0; 
+  case WM_PAINT:
+    hDC = BeginPaint(hWnd, &ps);
+    BitBlt(hMemDC, 0, 0, W, H, hclockBuf, 0, 0, SRCCOPY);
+    BitBlt(hDC, 0, 0, W, H, hMemDC, 0, 0, SRCCOPY);
+    
+    EndPaint(hWnd, &ps);
+    return 0;
+  case WM_ERASEBKGND:
+    return 0;
+  case WM_DESTROY:
+    DeleteObject(hclockBuf);
+    DeleteObject(hMemDC);
+    KillTimer(hWnd, 30);
+    PostQuitMessage(0);
+    return 0;
+  }
+  return DefWindowProc(hWnd, Message, wParam, lParam);
+}         
+
+       /*
+LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
+                              WPARAM wParam, LPARAM lParam)
+{
+  HDC hDC;
+  PAINTSTRUCT ps;
+  static INT W, H;
+  static HDC hMemDC;
+  static HBITMAP hBm;
+  static HBITMAP bm;
+  
+  switch (Message)
+  {
+  case WM_CREATE:
+    hDC = GetDC(hWnd);
+    hMemDC = CreateCompatibleDC(hDC);
+    ReleaseDC(hWnd, hDC);
+    SetTimer(hWnd, 30, 100, NULL);
+    hBm = CreateCompatibleBitmap(hDC, W, H);
+    hBm = LoadImage(NULL, "cloackface.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
     return 0;
   case WM_SIZE:
     H = HIWORD(lParam);
@@ -207,13 +318,11 @@ LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
     hBm = CreateCompatibleBitmap(hDC, W, H);
     ReleaseDC(hWnd, hDC);
     SelectObject(hMemDC, hBm);
-    
-    GetObject(clock, sizeof(BITMAP), &bm);
-    SelectObject(hclock, hBm);
-
-    SendMessage(hWnd, WM_TIMER, 0, 0);
+    Ellipse(hMemDC, 0, 0, W / 2, H / 2);
+    Ellipse(hMemDC, W / 2, H / 2, W, H);
     return 0;
   case WM_TIMER:
+
     InvalidateRect(hWnd, NULL, FALSE);
     return 0;
   case WM_LBUTTONDOWN:
@@ -234,4 +343,4 @@ LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
     return 0;
   }
   return DefWindowProc(hWnd, Message, wParam, lParam);
-}
+}                    */          
