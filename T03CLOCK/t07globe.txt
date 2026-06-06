@@ -1,0 +1,304 @@
+#include <stdio.h>
+#include <time.h>
+#include <math.h>
+#include <windows.h>
+#include "globe.h"
+  
+#define pi 3.14159265358
+
+VEC GLB_Geom[GLB_GRID_H][GLB_GRID_W];
+static INT GLB_Ws, GLB_Hs;
+ 
+VEC RotateZ( VEC P, DBL Angle )
+{
+  VEC NewP;
+  DBL a = Angle * pi / 180, si = sin(a), co = cos(a);
+ 
+  NewP.X = P.X * co - P.Y * si;
+  NewP.Y = P.X * si + P.Y * co;
+  NewP.Z = P.Z;
+  return NewP;
+} /* End of 'RotateZ' function */
+ 
+/* Rotate vector around X axis function.
+ * ARGUMENTS:
+ *   - vector coordinates:
+ *       VEC P;
+ *   - rotation angle in degrees:
+ *       DBL Angle;
+ * RETURNS:
+ *   (VEC) rotated vector.
+ */
+VEC RotateX( VEC P, DBL Angle )
+{
+  VEC NewP;
+  DBL a = Angle * pi / 180, si = sin(a), co = cos(a);
+ 
+  NewP.X = P.X;
+  NewP.Y = P.Y * co - P.Z * si;
+  NewP.Z = P.Y * si + P.Z * co;
+  return NewP;
+} /* End of 'RotateX' function */
+ 
+/* Rotate vector around Y axis function.
+ * ARGUMENTS:
+ *   - vector coordinates:
+ *       VEC P;
+ *   - rotation angle in degrees:
+ *       DBL Angle;
+ * RETURNS:
+ *   (VEC) rotated vector.
+ */
+VEC RotateY( VEC P, DBL Angle )
+{
+  VEC NewP;
+  DBL a = Angle * pi / 180, si = sin(a), co = cos(a);
+ 
+  NewP.X = P.Z * si + P.X * co;
+  NewP.Y = P.Y;
+  NewP.Z = P.Z * co - P.X * si;
+  return NewP;
+} /* End of 'RotateY' function */
+ 
+VOID GLB_Init( DBL R )
+{
+  INT i, j;
+  FLOAT t = clock() / CLOCKS_PER_SEC;
+  
+  for (i = 0; i < GLB_GRID_H; i++)
+    for (j = 0; j < GLB_GRID_W; j++)
+    {
+      DBL theta = i * pi / (GLB_GRID_H - 1), phi = j * 2 * pi / (GLB_GRID_W - 1);
+ 
+      GLB_Geom[i][j].X = R * sin(theta) * sin(phi + t);
+      GLB_Geom[i][j].Y = R * cos(theta);
+      GLB_Geom[i][j].Z = R * sin(theta) * cos(phi + t);
+
+      GLB_Geom[i][j] = RotateX(GLB_Geom[i][j], 45);
+      GLB_Geom[i][j] = RotateZ(GLB_Geom[i][j], 70);
+    }   
+}
+
+VOID GLB_Draw( HDC hDC )
+{
+  static POINT pnts[GLB_GRID_H][GLB_GRID_W]; // <-- массив с проекциями точек
+  INT i, j, s = 2;
+
+  SelectObject(hDC, GetStockObject(NULL_PEN));
+  SelectObject(hDC, GetStockObject(DC_BRUSH));
+  SetDCBrushColor(hDC, RGB(155, 155, 155));
+
+  for (i = 0; i < GLB_GRID_H; i++)
+    for (j = 0; j < GLB_GRID_W; j++)
+    {
+      pnts[i][j].x = (INT)(GLB_Ws / 2 + GLB_Geom[i][j].X);
+      pnts[i][j].y = (INT)(GLB_Hs / 2 - GLB_Geom[i][j].Y);
+    }
+
+  for (i = 0; i < GLB_GRID_H; i++)
+    for (j = 0; j < GLB_GRID_W; j++)
+      Ellipse(hDC, pnts[i][j].x - s, pnts[i][j].y - s,
+                   pnts[i][j].x + s, pnts[i][j].y + s);
+
+  SelectObject(hDC, GetStockObject(DC_PEN));
+  SetDCPenColor(hDC, RGB(155, 155, 155));
+
+           
+  for (i = 0; i < GLB_GRID_H; i++)
+  {
+    MoveToEx(hDC, pnts[i][0].x, pnts[i][0].y, NULL);
+    for (j = 0; j < GLB_GRID_W; j++)
+      LineTo(hDC, pnts[i][j].x, pnts[i][j].y);
+  } 
+  for (j = 0; j < GLB_GRID_W; j++)
+  {
+    MoveToEx(hDC, pnts[0][j].x, pnts[0][j].y, NULL);
+    for (i = 0; i < GLB_GRID_H; i++)
+      LineTo(hDC, pnts[i][j].x, pnts[i][j].y);
+  }       
+
+} 
+ 
+VOID GLB_Resize( INT Ws, INT Hs )
+{
+  GLB_Ws = Ws;
+  GLB_Hs = Hs;
+  /*if (Ws >= Hs)
+    Wp = ProjSize * Ws / Hs, Hp = ProjSize;
+  else
+    Wp = ProjSize, Hp = ProjSize * Ws / Hs;
+    */
+}
+ 
+----------
+#include <stdio.h>
+#include <time.h>
+#include <math.h>
+#include <windows.h>
+#include <winnls.h>
+#include "globe.h"
+#define WND_CLASS_NAME "cgsg209"
+#define PI 3.1415926535897931
+
+LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Msg,
+                              WPARAM wParam, LPARAM lParam);
+
+VOID FlipFullScreen( HWND hWnd )
+{
+  static BOOL IsFullScreen = FALSE;
+  static RECT SaveRect;
+ 
+  if (!IsFullScreen)
+  {
+    HMONITOR hmon;
+    MONITORINFOEX moninfo;
+    RECT rc;
+ 
+    /* Save old window size and position */
+    GetWindowRect(hWnd, &SaveRect);
+ 
+    hmon = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+    
+    moninfo.cbSize = sizeof(moninfo);
+    GetMonitorInfo(hmon, (MONITORINFO *)&moninfo);
+
+    rc.left = 0;
+    rc.top = 0;
+    rc.right = GetSystemMetrics(SM_CXSCREEN);
+    rc.bottom = GetSystemMetrics(SM_CXSCREEN);
+
+    rc = moninfo.rcMonitor;
+
+    AdjustWindowRect(&rc, GetWindowLong(hWnd, GWL_STYLE), FALSE);
+         
+    SetWindowPos(hWnd, HWND_TOP,
+      rc.left, rc.top,
+      rc.right - rc.left,
+      rc.bottom - rc.top,
+      SWP_NOOWNERZORDER);
+    IsFullScreen = TRUE;
+  }
+  else
+  {
+    /* Restore from full screen mode */
+    SetWindowPos(hWnd, HWND_TOP,
+      SaveRect.left, SaveRect.top,
+      SaveRect.right - SaveRect.left,
+      SaveRect.bottom - SaveRect.top,
+      SWP_NOOWNERZORDER);
+    IsFullScreen = FALSE;
+  }
+}
+
+INT WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstanse, 
+                   CHAR *CmdLine, INT ShowCmd )
+{
+  HWND hWnd;
+  WNDCLASS wc;
+  MSG msg;
+
+  wc.style = 0;
+  wc.cbClsExtra = 0;
+  wc.cbWndExtra = 0;
+  wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
+  wc.hCursor = LoadCursor(NULL, IDC_HAND);
+  wc.hIcon = LoadIcon(NULL, IDI_SHIELD);
+  wc.hInstance = hInstance;
+  wc.lpszMenuName = NULL;
+  wc.lpszClassName = WND_CLASS_NAME;
+  wc.lpfnWndProc = MyWindowFunc;
+
+  if (!RegisterClass(&wc))
+  {
+    MessageBox(NULL, "error", "ERROR", MB_ICONERROR | MB_OK);
+    return 0;
+  }
+
+  hWnd = CreateWindow(WND_CLASS_NAME, "SummerPractice2026", WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+    100, 100, 500, 300, NULL, NULL, hInstance, NULL);
+ 
+  CreateWindow("BUTTON", "CLOSE", WS_CHILD | WS_VISIBLE,
+    10, 10, 100, 30, hWnd, (HMENU)123, hInstance, NULL);
+
+  while (GetMessage(&msg, NULL, 0, 0))
+  {
+    TranslateMessage(&msg);       
+    DispatchMessage(&msg);
+  }
+  return msg.wParam;
+}
+                                             
+LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
+                              WPARAM wParam, LPARAM lParam)
+{
+  HDC hDC;
+  PAINTSTRUCT ps;
+  static INT W, H;
+  static HDC hMemDC;
+  static HBITMAP hBm;
+  
+  switch (Message)
+  {
+  case WM_CREATE:
+    hDC = GetDC(hWnd);
+    hMemDC = CreateCompatibleDC(hDC);
+    ReleaseDC(hWnd, hDC);
+    SetTimer(hWnd, 30, 100, NULL);
+    GLB_Init(200);
+    return 0;
+  case WM_KEYDOWN:
+    if (wParam == VK_F11)
+      FlipFullScreen(hWnd);
+    return 0;
+  case WM_COMMAND:
+    SendMessage(hWnd, WM_CLOSE, 0, 0);
+  case WM_SIZE:         
+    H = HIWORD(lParam);
+    W = LOWORD(lParam);
+    GLB_Resize(W, H);
+    if (hBm != NULL)
+      DeleteObject(hBm);
+    hDC = GetDC(hWnd);
+    hBm = CreateCompatibleBitmap(hDC, W, H);
+    ReleaseDC(hWnd, hDC);
+    SelectObject(hMemDC, hBm);
+    
+    InvalidateRect(hWnd, NULL, FALSE);                           
+    return 0;
+  case WM_TIMER:
+    InvalidateRect(hWnd, NULL, FALSE);
+    return 0;
+  case WM_LBUTTONDOWN:
+    InvalidateRect(hWnd, NULL, FALSE);
+    return 0; 
+  case WM_PAINT:
+    hDC = BeginPaint(hWnd, &ps);
+
+    BitBlt(hDC, 0, 0, W, H, hMemDC, 0, 0, SRCCOPY);
+    GLB_Draw(hMemDC);
+    EndPaint(hWnd, &ps);
+    return 0;
+  case WM_ERASEBKGND:
+    return 1;
+  case WM_DESTROY:
+    DeleteObject(hBm);
+    DeleteDC(hMemDC);
+    KillTimer(hWnd, 30);
+    PostQuitMessage(0);
+    return 0;
+  }
+  return DefWindowProc(hWnd, Message, wParam, lParam);
+}    
+  
+  
+  ---------------
+  typedef DOUBLE DBL;
+#define GLB_GRID_H 18
+#define GLB_GRID_W 31
+typedef struct
+{
+  DBL X, Y, Z;
+} VEC;
+VOID GLB_Init( DBL R );
+VOID GLB_Draw( HDC hDC );
+VOID GLB_Resize( INT W, INT H );
