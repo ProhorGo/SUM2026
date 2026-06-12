@@ -1,0 +1,189 @@
+/* FILE NAME: timer.c
+ * PROGRAMMER: PG3
+ */
+
+#include "anim.h"
+#include <time.h>
+
+static UINT64
+    StartTime = 0,    /* Start program time */
+    OldTime = 0,      /* Previous frame time */
+    OldTimeFPS = 0,   /* Old time FPS measurement */
+    PauseTime = 0,    /* Time during pause period */
+    TimePerSec = 0,   /* Timer resolution */
+    FrameCounter = 0; 
+
+VOID TimerInit( pg3ANIM *Ani )
+{
+  LARGE_INTEGER start;
+ 
+  QueryPerformanceCounter(&start);
+
+  StartTime = OldTime = OldTimeFPS = start.QuadPart;
+  PauseTime = 0;
+  FrameCounter = 0;
+  Ani->IsPause = FALSE;
+  Ani->Time = Ani->DeltaTime = 0;
+  Ani->FPS = 30;
+}
+ 
+VOID TimerResponse( pg3ANIM *Ani )
+{
+  LARGE_INTEGER t;
+ 
+  QueryPerformanceCounter(&t);
+ 
+  /* Global time */
+  Ani->GlobalTime = (DBL)(t.QuadPart - StartTime) / TimePerSec;
+  Ani->GlobalDeltaTime = (DBL)(t.QuadPart - OldTime) / TimePerSec;
+  /* Time with pause */
+  if (!Ani->IsPause)
+  {
+    Ani->Time = (DBL)(t.QuadPart - PauseTime - StartTime) / TimePerSec;
+    Ani->DeltaTime = Ani->GlobalDeltaTime;
+  }
+  else
+  {
+    Ani->DeltaTime = 0;
+    PauseTime += t.QuadPart - OldTime;
+  }
+ 
+  /* FPS */
+  FrameCounter++;
+  if (t.QuadPart - OldTimeFPS > 3 * TimePerSec)
+  {
+    Ani->FPS = FrameCounter * TimePerSec / (DBL)(t.QuadPart - OldTimeFPS);
+    OldTimeFPS = t.QuadPart;
+    FrameCounter = 0;
+  }
+  OldTime = t.QuadPart;
+}
+
+/* END of 'timer.c' FILE */
+
+
+
+
+LRESULT CALLBACK MyWindowFunc( HWND hWnd, UINT Message,
+                              WPARAM wParam, LPARAM lParam)
+{
+  HDC hDC;
+  PAINTSTRUCT ps;
+  MINMAXINFO *minmax;
+  static pg3PRIM Pr, Pr1, Pr2;
+  pg3ANIM Anim;
+  char head[100];
+  
+  switch (Message)
+  {
+  case WM_GETMINMAXINFO:
+    minmax = (MINMAXINFO *)lParam;
+    minmax->ptMinTrackSize.y += 100;
+    minmax->ptMaxTrackSize.y = GetSystemMetrics(SM_CYMAXTRACK) + 
+      GetSystemMetrics(SM_CYCAPTION) + GetSystemMetrics(SM_CYBORDER) * 2;
+    return 0;
+  case WM_KEYDOWN:
+    if (wParam == VK_F11)
+      FlipFullScreen(hWnd);
+    return 0;
+  case WM_CREATE:
+    SetTimer(hWnd, 30, 100, NULL);
+    TimerInit(&Anim);
+    PG3_AnimInit(hWnd);
+    return 0;
+  case WM_SIZE:   
+    PG3_AnimResize(LOWORD(lParam), HIWORD(lParam));
+    SendMessage(hWnd, WM_TIMER, 0, 0);
+    return 0;
+  case WM_TIMER:
+    TimerResponse(&Anim);
+     
+    PG3_AnimRender();
+    if (Anim.IsPause)
+      sprintf(head, "PAUSE");
+    else          
+      sprintf(head, "FPS: %.3f", Anim.FPS);
+    /*SetBkMode(PG3_hRndDC, COLORONCOLOR);
+    SetTextColor(PG3_hRndDC, RGB(255, 255, 0));
+    TextOut(PG3_hRndDC, 10, 10, head, strlen(head));*/
+    SetWindowText(hWnd, head);
+    PG3_AnimCopyFrame();
+    return 0;
+  case WM_LBUTTONDOWN:
+    return 0;                                     
+  case WM_PAINT:
+    hDC = BeginPaint(hWnd, &ps); 
+    EndPaint(hWnd, &ps);
+    return 0;
+  case WM_ERASEBKGND:
+    return 1;
+  case WM_DESTROY:
+    PG3_AnimClose();
+    KillTimer(hWnd, 30);
+    PostQuitMessage(0);
+    return 0;
+  }
+  return DefWindowProc(hWnd, Message, wParam, lParam);
+}      
+
+
+
+
+
+
+
+#define PG3_UNIT_BASE_FIELDS \
+  VOID (*Init)( pg3UNIT *Uni, pg3ANIM *Ani );      \
+  VOID (*Close)( pg3UNIT *Uni, pg3ANIM *Ani );     \
+  VOID (*Response)( pg3UNIT *Uni, pg3ANIM *Ani );  \
+  VOID (*Render)( pg3UNIT *Uni, pg3ANIM *Ani )
+
+struct tagpg3UNIT
+{
+  PG3_UNIT_BASE_FIELDS;
+};
+
+struct tagpg3ANIM
+{
+  HWND hWnd;                      /* window */
+  HDC hDC;                        /* контекст в памяти (тырим из VG4_hRndDCFrame) */
+  INT W, H;                       /* размер окна */
+
+  pg3UNIT * Units[PG3_MAX_UNITS]; /*  массив объектов анимации */
+  INT NumOfUnits;                 /* текущее количество объектов анимации */
+
+  DBL
+    GlobalTime, GlobalDeltaTime, /* Global time and interframe interval */
+    Time, DeltaTime,             /* Time with pause and interframe interval */
+    FPS;                         /* Frames per second value */
+  BOOL
+    IsPause;                     /* Pause flag */
+};
+
+extern pg3ANIM PG3_Anim; 
+
+VOID PG3_AnimInit( HWND hWnd );
+VOID PG3_AnimClose( VOID );
+VOID PG3_AnimResize( INT W, INT H );
+VOID PG3_AnimCopyFrame( VOID );
+VOID PG3_AnimRender( VOID );
+VOID PG3_AnimUnitAdd( pg3UNIT *Uni );
+
+/* Unit creation function.
+ * ARGUMENTS:
+ *   - unit structure size in bytes:
+ *       INT Size;
+ * RETURNS:
+ *   (pg3UNIT *) pointer to created unit.
+ */
+
+pg3UNIT * PG3_AnimUnitCreate( INT Size );
+
+/* time */
+
+VOID TimerInit( pg3ANIM *Ani );
+VOID TimerResponse( pg3ANIM *Ani );
+
+#endif 
+
+/* END of 'anim.h' FILE */
